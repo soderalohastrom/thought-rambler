@@ -1,34 +1,21 @@
 {
   "version": 2,
-  "builds": [
+  "buildCommand": "cd thought-ramble-parser && pnpm install && pnpm build",
+  "outputDirectory": "thought-ramble-parser/dist",
+  "framework": "vite",
+  "rewrites": [
     {
-      "src": "backend/app.py",
-      "use": "@vercel/python"
+      "source": "/api/(.*)",
+      "destination": "/backend/app.py"
     },
     {
-      "src": "thought-ramble-parser/package.json",
-      "use": "@vercel/static-build",
-      "config": {
-        "distDir": "thought-ramble-parser/dist"
-      }
+      "source": "/health",
+      "destination": "/backend/app.py"
     }
   ],
-  "routes": [
-    {
-      "src": "/health",
-      "dest": "backend/app.py"
-    },
-    {
-      "src": "/api/(.*)",
-      "dest": "backend/app.py"
-    },
-    {
-      "src": "/assets/(.*)",
-      "dest": "thought-ramble-parser/dist/assets/$1"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "thought-ramble-parser/dist/index.html"
+  "functions": {
+    "backend/app.py": {
+      "runtime": "python3.9"
     }
-  ]
+  }
 }
