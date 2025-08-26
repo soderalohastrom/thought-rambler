@@ -264,16 +264,23 @@ class SimpleThoughtParser:
 # Initialize the parser
 parser = None
 
+def get_parser():
+    """Get or initialize parser instance (serverless-friendly)"""
+    global parser
+    if parser is None:
+        try:
+            parser = SimpleThoughtParser()
+            logger.info("Thought parser initialized successfully")
+        except Exception as e:
+            logger.error(f"Failed to initialize thought parser: {e}")
+            return None
+    return parser
+
 @app.on_event("startup")
 async def startup_event():
     """Initialize services on startup"""
-    global parser
     initialize_nlp_model()
-    if parser_ready:
-        parser = SimpleThoughtParser()
-        logger.info("Thought parser initialized successfully")
-    else:
-        logger.error("Failed to initialize thought parser")
+    get_parser()  # Initialize parser
 
 @app.get("/")
 async def root():
@@ -284,13 +291,14 @@ async def health_check():
     return {
         "status": "healthy",
         "nlp_ready": parser_ready,
-        "parser_ready": parser is not None
+        "parser_ready": get_parser() is not None
     }
 
 @app.post("/api/parse-thoughts", response_model=ThoughtParseResponse)
 async def parse_thoughts(request: ThoughtParseRequest):
     """Main endpoint for parsing thought rambles"""
-    if not parser:
+    current_parser = get_parser()
+    if not current_parser:
         raise HTTPException(status_code=503, detail="Parser not initialized. Please ensure spaCy model is loaded.")
     
     if not request.text.strip():
@@ -301,7 +309,7 @@ async def parse_thoughts(request: ThoughtParseRequest):
         start_time = time.time()
         
         # Parse the thoughts
-        chunks = parser.parse_thoughts(request.text, request.provider, request.model)
+        chunks = current_parser.parse_thoughts(request.text, request.provider, request.model)
         
         processing_time = time.time() - start_time
         
@@ -329,7 +337,8 @@ async def parse_thoughts(request: ThoughtParseRequest):
 @app.post("/api/parse-thoughts-llm", response_model=ThoughtParseResponse)
 async def parse_thoughts_llm(request: ThoughtParseRequest):
     """Enhanced endpoint for parsing thought rambles with LLM-based relationship detection"""
-    if not parser:
+    current_parser = get_parser()
+    if not current_parser:
         raise HTTPException(status_code=503, detail="Parser not initialized. Please ensure spaCy model is loaded.")
     
     if not request.text.strip():
@@ -362,7 +371,7 @@ async def parse_thoughts_llm(request: ThoughtParseRequest):
         
         # Fallback to basic parsing if LLM is disabled or failed
         if not enhanced_chunks:
-            enhanced_chunks = parser.parse_thoughts(request.text, request.provider, request.model)
+            enhanced_chunks = current_parser.parse_thoughts(request.text, request.provider, request.model)
         
         processing_time = time.time() - start_time
         
@@ -395,7 +404,7 @@ async def parse_thoughts_with_llm_sync(text: str, provider: str, model: str, par
         from spacy_llm_tasks.chunk_relationship import merge_related_chunks, ChunkRelationship
         
         # Step 1: Get basic chunks
-        basic_chunks = parser.parse_thoughts(text, provider, model)
+        basic_chunks = current_parser.parse_thoughts(text, provider, model)
         
         if len(basic_chunks) < 2:
             return basic_chunks
