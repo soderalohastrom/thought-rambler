@@ -3,16 +3,14 @@
   "builds": [
     {
       "src": "backend/app.py",
-      "use": "@vercel/python",
-      "config": {
-        "maxLambdaSize": "50mb"
-      }
+      "use": "@vercel/python"
     },
     {
       "src": "thought-ramble-parser/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "thought-ramble-parser/dist"
+        "distDir": "dist",
+        "framework": "vite"
       }
     }
   ],
@@ -27,8 +25,7 @@
     },
     {
       "src": "/(.*)",
-      "dest": "thought-ramble-parser/dist/$1"
+      "dest": "thought-ramble-parser/index.html"
     }
-  ],
-  "buildCommand": "cd thought-ramble-parser && pnpm install && pnpm build"
+  ]
 }
