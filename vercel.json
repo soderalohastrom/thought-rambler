@@ -9,8 +9,7 @@
       "src": "thought-ramble-parser/package.json",
       "use": "@vercel/static-build",
       "config": {
-        "distDir": "dist",
-        "framework": "vite"
+        "distDir": "thought-ramble-parser/dist"
       }
     }
   ],
@@ -24,8 +23,12 @@
       "dest": "backend/app.py"
     },
     {
+      "src": "/assets/(.*)",
+      "dest": "thought-ramble-parser/dist/assets/$1"
+    },
+    {
       "src": "/(.*)",
-      "dest": "thought-ramble-parser/index.html"
+      "dest": "thought-ramble-parser/dist/index.html"
     }
   ]
 }
