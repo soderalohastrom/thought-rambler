@@ -30,11 +30,5 @@
       "dest": "thought-ramble-parser/dist/$1"
     }
   ],
-  "functions": {
-    "backend/app.py": {
-      "runtime": "python3.11",
-      "maxDuration": 30
-    }
-  },
   "buildCommand": "cd thought-ramble-parser && pnpm install && pnpm build"
 }
