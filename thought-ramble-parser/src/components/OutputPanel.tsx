@@ -2,6 +2,7 @@ import React from 'react';
 import { type ThoughtParseResponse } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { LLMStatus } from '@/components/LLMToggle';
 import { Brain, Clock, Target, Hash, Heart, Zap, Meh } from 'lucide-react';
 
 interface OutputPanelProps {
@@ -103,20 +104,28 @@ export function OutputPanel({ result, isLoading }: OutputPanelProps) {
       </CardHeader>
       
       <CardContent className="flex-1 overflow-hidden">
-        {/* Metadata */}
-        <div className="flex flex-wrap gap-2 mb-4 p-3 bg-gray-50 rounded-lg">
-          <Badge variant="secondary" className="flex items-center gap-1">
-            <Hash className="w-3 h-3" />
-            {result.total_chunks} chunks
-          </Badge>
-          <Badge variant="secondary" className="flex items-center gap-1">
-            <Clock className="w-3 h-3" />
-            {result.processing_time.toFixed(3)}s
-          </Badge>
-          <Badge variant="secondary" className="flex items-center gap-1">
-            <Target className="w-3 h-3" />
-            {Math.round(result.metadata.average_chunk_length)} avg chars
-          </Badge>
+        {/* Metadata and LLM Status */}
+        <div className="space-y-3 mb-4">
+          <div className="flex flex-wrap gap-2 p-3 bg-gray-50 rounded-lg">
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Hash className="w-3 h-3" />
+              {result.total_chunks} chunks
+            </Badge>
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Clock className="w-3 h-3" />
+              {result.processing_time.toFixed(3)}s
+            </Badge>
+            <Badge variant="secondary" className="flex items-center gap-1">
+              <Target className="w-3 h-3" />
+              {Math.round(result.metadata.average_chunk_length)} avg chars
+            </Badge>
+          </div>
+          
+          <LLMStatus
+            isEnhanced={result.metadata.llm_enhanced || false}
+            processingTime={result.processing_time}
+            totalChunks={result.total_chunks}
+          />
         </div>
 
         {/* Thought Chunks */}
@@ -135,6 +144,11 @@ export function OutputPanel({ result, isLoading }: OutputPanelProps) {
                     {getSentimentIcon(chunk.sentiment)}
                     {chunk.sentiment}
                   </div>
+                  {(chunk as any).merged_from && (chunk as any).merged_from.length > 1 && (
+                    <Badge variant="outline" className="text-xs bg-purple-50 text-purple-700 border-purple-200">
+                      Merged from {(chunk as any).merged_from.length} chunks
+                    </Badge>
+                  )}
                 </div>
                 <Badge variant="outline" className="text-xs">
                   {Math.round(chunk.confidence * 100)}% confidence

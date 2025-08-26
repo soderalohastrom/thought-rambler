@@ -2,12 +2,14 @@ import React, { useState } from 'react';
 import { type ThoughtParseResponse } from '@/lib/api';
 import { InputPanel } from '@/components/InputPanel';
 import { OutputPanel } from '@/components/OutputPanel';
+import { LLMToggle } from '@/components/LLMToggle';
 import { Toaster } from '@/components/ui/toaster';
 import { Brain, Github, Sparkles } from 'lucide-react';
 
 function App() {
   const [parseResult, setParseResult] = useState<ThoughtParseResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [llmEnabled, setLlmEnabled] = useState(false);
 
   const handleParseResult = (result: ThoughtParseResponse) => {
     setParseResult(result);
@@ -33,11 +35,12 @@ function App() {
               </div>
             </div>
             
-            <div className="flex items-center gap-2">
-              <div className="flex items-center gap-1 text-sm text-gray-500">
-                <Sparkles className="w-4 h-4" />
-                <span>Powered by spaCy LLM</span>
-              </div>
+            <div className="flex items-center gap-4">
+              <LLMToggle
+                enabled={llmEnabled}
+                onToggle={setLlmEnabled}
+                isProcessing={isLoading}
+              />
             </div>
           </div>
         </div>
@@ -52,6 +55,7 @@ function App() {
               onParseResult={handleParseResult}
               isLoading={isLoading}
               setIsLoading={setIsLoading}
+              llmEnabled={llmEnabled}
             />
           </div>
           

@@ -14,6 +14,7 @@ export interface ThoughtParseRequest {
   text: string;
   provider?: string;
   model?: string;
+  enable_llm?: boolean;
 }
 
 export interface ThoughtParseResponse {
@@ -25,6 +26,7 @@ export interface ThoughtParseResponse {
     provider: string;
     model: string;
     average_chunk_length: number;
+    llm_enhanced?: boolean;
   };
 }
 
@@ -42,7 +44,7 @@ class ThoughtParserAPI {
     this.baseURL = baseURL || 
       (typeof window !== 'undefined' && window.location.origin.includes('localhost') 
         ? 'http://localhost:8000' 
-        : 'https://backend-g33cbpiu7-soderalohastroms-projects.vercel.app');
+        : 'https://backend-1md2v1tzp-soderalohastroms-projects.vercel.app');
   }
 
   async healthCheck() {
@@ -54,7 +56,10 @@ class ThoughtParserAPI {
   }
 
   async parseThoughts(request: ThoughtParseRequest): Promise<ThoughtParseResponse> {
-    const response = await fetch(`${this.baseURL}/api/parse-thoughts`, {
+    // Choose endpoint based on LLM enhancement setting
+    const endpoint = request.enable_llm ? '/api/parse-thoughts-llm' : '/api/parse-thoughts';
+    
+    const response = await fetch(`${this.baseURL}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -63,6 +68,7 @@ class ThoughtParserAPI {
         text: request.text,
         provider: request.provider || 'openai',
         model: request.model || 'gpt-3.5-turbo',
+        enable_llm: request.enable_llm || false,
       }),
     });
 

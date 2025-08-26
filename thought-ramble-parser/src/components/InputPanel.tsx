@@ -9,9 +9,10 @@ interface InputPanelProps {
   onParseResult: (result: ThoughtParseResponse) => void;
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
+  llmEnabled: boolean;
 }
 
-export function InputPanel({ onParseResult, isLoading, setIsLoading }: InputPanelProps) {
+export function InputPanel({ onParseResult, isLoading, setIsLoading, llmEnabled }: InputPanelProps) {
   const [inputText, setInputText] = useState('');
   const [sampleData, setSampleData] = useState<SampleRambles | null>(null);
   const [error, setError] = useState<string>('');
@@ -47,7 +48,8 @@ export function InputPanel({ onParseResult, isLoading, setIsLoading }: InputPane
       const result = await thoughtParserAPI.parseThoughts({
         text: inputText.trim(),
         provider: 'openai',
-        model: 'gpt-3.5-turbo'
+        model: 'gpt-3.5-turbo',
+        enable_llm: llmEnabled
       });
       
       onParseResult(result);

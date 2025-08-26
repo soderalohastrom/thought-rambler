@@ -40,6 +40,7 @@ class ThoughtParseRequest(BaseModel):
     text: str
     provider: str = "openai"  # openai, anthropic, etc.
     model: str = "gpt-3.5-turbo"
+    enable_llm: bool = False  # Enable LLM-enhanced processing
 
 class ThoughtChunk(BaseModel):
     id: int
@@ -324,6 +325,159 @@ async def parse_thoughts(request: ThoughtParseRequest):
     except Exception as e:
         logger.error(f"Error parsing thoughts: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Error processing text: {str(e)}")
+
+@app.post("/api/parse-thoughts-llm", response_model=ThoughtParseResponse)
+async def parse_thoughts_llm(request: ThoughtParseRequest):
+    """Enhanced endpoint for parsing thought rambles with LLM-based relationship detection"""
+    if not parser:
+        raise HTTPException(status_code=503, detail="Parser not initialized. Please ensure spaCy model is loaded.")
+    
+    if not request.text.strip():
+        raise HTTPException(status_code=400, detail="Text input cannot be empty")
+    
+    try:
+        import time
+        start_time = time.time()
+        
+        # Check if LLM enhancement is enabled and available
+        llm_available = False
+        enhanced_chunks = []
+        
+        if request.enable_llm:
+            try:
+                from models.gemma_loader import get_gemma_model
+                from spacy_llm_tasks.chunk_relationship import merge_related_chunks, ChunkRelationship
+                
+                gemma = get_gemma_model()
+                if gemma.is_available():
+                    llm_available = True
+                    logger.info("LLM enhancement enabled - using Gemma for relationship detection")
+                    enhanced_chunks = await parse_thoughts_with_llm_sync(request.text, request.provider, request.model, parser)
+                else:
+                    logger.warning("Gemma model not available, falling back to basic parsing")
+            except ImportError as e:
+                logger.warning(f"LLM components not available: {e}")
+            except Exception as e:
+                logger.error(f"LLM enhancement failed: {e}")
+        
+        # Fallback to basic parsing if LLM is disabled or failed
+        if not enhanced_chunks:
+            enhanced_chunks = parser.parse_thoughts(request.text, request.provider, request.model)
+        
+        processing_time = time.time() - start_time
+        
+        # Convert to response format
+        thought_chunks = [ThoughtChunk(**chunk) for chunk in enhanced_chunks]
+        
+        response = ThoughtParseResponse(
+            chunks=thought_chunks,
+            total_chunks=len(thought_chunks),
+            processing_time=processing_time,
+            metadata={
+                "input_length": len(request.text),
+                "provider": request.provider,
+                "model": request.model,
+                "llm_enhanced": llm_available and request.enable_llm,
+                "average_chunk_length": sum(len(chunk.text) for chunk in thought_chunks) / len(thought_chunks) if thought_chunks else 0
+            }
+        )
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f"Error in LLM-enhanced parsing: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error processing text with LLM: {str(e)}")
+
+async def parse_thoughts_with_llm_sync(text: str, provider: str, model: str, parser) -> List[Dict[str, Any]]:
+    """Synchronous wrapper for LLM-enhanced parsing"""
+    try:
+        from models.gemma_loader import get_gemma_model
+        from spacy_llm_tasks.chunk_relationship import merge_related_chunks, ChunkRelationship
+        
+        # Step 1: Get basic chunks
+        basic_chunks = parser.parse_thoughts(text, provider, model)
+        
+        if len(basic_chunks) < 2:
+            return basic_chunks
+        
+        # Step 2: Use Gemma for relationship detection
+        gemma = get_gemma_model()
+        relationships = []
+        
+        for i, chunk1 in enumerate(basic_chunks):
+            for j in range(i + 1, min(i + 4, len(basic_chunks))):  # Check within 3-chunk window
+                chunk2 = basic_chunks[j]
+                
+                # Create relationship prompt
+                prompt = create_relationship_prompt(chunk1['text'], chunk2['text'])
+                
+                try:
+                    response = gemma([prompt])[0]
+                    relationship = parse_relationship_response(response, i, j)
+                    
+                    if relationship and relationship.confidence >= 0.7:
+                        relationships.append(relationship)
+                        logger.info(f"Found relationship: {i}-{j} ({relationship.relationship_type}, {relationship.confidence})")
+                
+                except Exception as e:
+                    logger.warning(f"Failed to analyze relationship {i}-{j}: {e}")
+                    continue
+        
+        # Step 3: Merge related chunks
+        if relationships:
+            enhanced_chunks = merge_related_chunks(basic_chunks, relationships)
+            logger.info(f"Merged {len(basic_chunks)} -> {len(enhanced_chunks)} chunks")
+            return enhanced_chunks
+        else:
+            return basic_chunks
+            
+    except Exception as e:
+        logger.error(f"LLM processing failed: {e}")
+        return basic_chunks
+
+def create_relationship_prompt(chunk1_text: str, chunk2_text: str) -> str:
+    """Create a prompt for relationship analysis"""
+    return f"""Analyze if these two text segments are related:
+
+Segment 1: "{chunk1_text}"
+Segment 2: "{chunk2_text}"
+
+Consider if they discuss the same topic, person, event, or are causally related.
+
+Respond with:
+RELATIONSHIP: [SAME_TOPIC|SAME_PERSON|SAME_EVENT|CAUSE_EFFECT|TEMPORAL|NONE]
+CONFIDENCE: [0.0 to 1.0]
+
+Example:
+RELATIONSHIP: SAME_PERSON
+CONFIDENCE: 0.95"""
+
+def parse_relationship_response(response: str, chunk1_id: int, chunk2_id: int):
+    """Parse Gemma's response for relationship information"""
+    try:
+        from spacy_llm_tasks.chunk_relationship import ChunkRelationship
+        
+        lines = [line.strip() for line in response.strip().split('\n') if line.strip()]
+        
+        relationship_type = "NONE"
+        confidence = 0.0
+        
+        for line in lines:
+            if line.startswith("RELATIONSHIP:"):
+                relationship_type = line.split(":", 1)[1].strip()
+            elif line.startswith("CONFIDENCE:"):
+                try:
+                    confidence = float(line.split(":", 1)[1].strip())
+                except ValueError:
+                    confidence = 0.0
+        
+        if relationship_type != "NONE" and confidence > 0:
+            return ChunkRelationship(chunk1_id, chunk2_id, confidence, relationship_type)
+            
+    except Exception as e:
+        logger.warning(f"Error parsing relationship response: {e}")
+    
+    return None
 
 if __name__ == "__main__":
     import uvicorn
