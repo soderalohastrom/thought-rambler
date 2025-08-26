@@ -269,10 +269,13 @@ def get_parser():
     global parser
     if parser is None:
         try:
+            logger.info("Initializing SimpleThoughtParser...")
             parser = SimpleThoughtParser()
             logger.info("Thought parser initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize thought parser: {e}")
+            import traceback
+            logger.error(f"Full traceback: {traceback.format_exc()}")
             return None
     return parser
 
