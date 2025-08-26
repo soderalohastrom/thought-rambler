@@ -1,0 +1,34 @@
+{
+  "todos": {
+    "Coordinator": {
+      "1": {
+        "id": "1",
+        "content": "Set up project structure with React-Vite frontend and Python backend for Vercel deployment",
+        "details": "Create the basic project structure optimized for Vercel deployment, including React-Vite app setup and Python API endpoints. Include Docker configuration files for future deployment options.",
+        "status": "completed",
+        "priority": "high"
+      },
+      "2": {
+        "id": "2",
+        "content": "Implement Python API service with spaCy LLM integration",
+        "details": "Set up Python FastAPI backend with spaCy-llm library integration for thought parsing and sentence splitting. Include configurable LLM API integration (OpenAI, Anthropic, etc.) with environment variable support.",
+        "status": "completed",
+        "priority": "high"
+      },
+      "3": {
+        "id": "3",
+        "content": "Build React frontend with test buttons and input/output interface",
+        "details": "Create React-Vite app with: test buttons (Small/Medium/Large) for sample rambles, large text input area, process button, and right panel for chunked output visualization. Include API integration to communicate with Python backend.",
+        "status": "completed",
+        "priority": "high"
+      },
+      "4": {
+        "id": "4",
+        "content": "Create sample thought rambles for test buttons",
+        "details": "Generate realistic human rambling text samples of varying lengths (small, medium, large) that simulate STT walkie-talkie style communication with multiple disparate thoughts.",
+        "status": "completed",
+        "priority": "medium"
+      }
+    }
+  }
+}
