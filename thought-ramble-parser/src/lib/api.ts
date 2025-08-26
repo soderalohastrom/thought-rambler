@@ -38,15 +38,15 @@ class ThoughtParserAPI {
   private baseURL: string;
 
   constructor(baseURL?: string) {
-    // Use environment variable or fallback to localhost
+    // Use environment variable or explicit backend URL
     this.baseURL = baseURL || 
       (typeof window !== 'undefined' && window.location.origin.includes('localhost') 
         ? 'http://localhost:8000' 
-        : window.location.origin);
+        : 'https://backend-g33cbpiu7-soderalohastroms-projects.vercel.app');
   }
 
   async healthCheck() {
-    const response = await fetch(`${this.baseURL}/health`);
+    const response = await fetch(`${this.baseURL}/api/health`);
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`);
     }
