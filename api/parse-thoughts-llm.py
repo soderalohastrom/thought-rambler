@@ -39,14 +39,14 @@ class handler(BaseHTTPRequestHandler):
             if enable_llm:
                 # Try to use Cloudflare Workers LLM enhancement
                 chunks = self.parse_thoughts_llm_enhanced(text, provider, model)
-                llm_enhanced = chunks is not None and chunks.get('llm_processed', False)
-                
-                if not chunks or not llm_enhanced:
+                if chunks is not None and chunks.get('llm_processed', False):
+                    # Successfully got LLM response
+                    llm_enhanced = True
+                    chunks = chunks.get('chunks', [])
+                else:
                     # Fallback to basic parsing
                     chunks = self.parse_thoughts_basic(text, provider, model)
                     llm_enhanced = False
-                else:
-                    chunks = chunks.get('chunks', [])
             else:
                 # Use basic parsing
                 chunks = self.parse_thoughts_basic(text, provider, model)
@@ -68,7 +68,9 @@ class handler(BaseHTTPRequestHandler):
                     "endpoint": "parse-thoughts-llm",
                     "llm_provider": "cloudflare-workers" if llm_enhanced else "rule-based",
                     "note": "Cloudflare Workers LLM active" if llm_enhanced else "Cloudflare LLM unavailable - using rule-based fallback" if enable_llm else "Basic parsing via LLM endpoint",
-                    "average_chunk_length": sum(len(chunk['text']) for chunk in chunks) / len(chunks) if chunks else 0
+                    "average_chunk_length": sum(len(chunk['text']) for chunk in chunks) / len(chunks) if chunks else 0,
+                    "debug_chunks_count": len(chunks),
+                    "debug_chunks_type": type(chunks).__name__
                 }
             }
             
@@ -175,8 +177,13 @@ class handler(BaseHTTPRequestHandler):
                         return None
                         
             except Exception as e:
-                # Network or timeout error
-                return None
+                # Network or timeout error - return error details for debugging
+                return {
+                    'chunks': [],
+                    'llm_processed': False,
+                    'error': str(e),
+                    'error_type': 'network_timeout'
+                }
                 
         except Exception:
             # Any other error - fallback gracefully
