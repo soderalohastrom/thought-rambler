@@ -37,14 +37,16 @@ class handler(BaseHTTPRequestHandler):
             start_time = time.time()
             
             if enable_llm:
-                # For now, just use basic parsing with a note that LLM is requested
-                # This ensures the endpoint works while we debug the Gemma integration
-                chunks = self.parse_thoughts_basic(text, provider, model)
-                llm_enhanced = False  # Will be True when Gemma is working
+                # Try to use Cloudflare Workers LLM enhancement
+                chunks = self.parse_thoughts_llm_enhanced(text, provider, model)
+                llm_enhanced = chunks is not None and chunks.get('llm_processed', False)
                 
-                # Add a note to the first chunk that LLM was requested
-                if chunks:
-                    chunks[0]['llm_requested'] = True
+                if not chunks or not llm_enhanced:
+                    # Fallback to basic parsing
+                    chunks = self.parse_thoughts_basic(text, provider, model)
+                    llm_enhanced = False
+                else:
+                    chunks = chunks.get('chunks', [])
             else:
                 # Use basic parsing
                 chunks = self.parse_thoughts_basic(text, provider, model)
@@ -64,7 +66,8 @@ class handler(BaseHTTPRequestHandler):
                     "llm_enhanced": llm_enhanced,
                     "llm_requested": enable_llm,
                     "endpoint": "parse-thoughts-llm",
-                    "note": "LLM endpoint working - Gemma integration in progress" if enable_llm else "Basic parsing via LLM endpoint",
+                    "llm_provider": "cloudflare-workers" if llm_enhanced else "rule-based",
+                    "note": "Cloudflare Workers LLM active" if llm_enhanced else "Cloudflare LLM unavailable - using rule-based fallback" if enable_llm else "Basic parsing via LLM endpoint",
                     "average_chunk_length": sum(len(chunk['text']) for chunk in chunks) / len(chunks) if chunks else 0
                 }
             }
@@ -94,78 +97,76 @@ class handler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(b'')
     
-    def parse_thoughts_llm_enhanced(self, text, provider="openai", model="gpt-3.5-turbo"):
-        """Try to use Gemma/LLM-enhanced parsing - returns None if not available"""
+    def parse_thoughts_llm_enhanced(self, text, provider="cloudflare", model="llama-3.1-8b-instruct-fast"):
+        """Use Cloudflare Workers LLM for enhanced thought parsing"""
         try:
-            # Check if we're in an environment that supports heavy ML dependencies
-            # For Vercel serverless, this will likely fail due to size limits
+            import urllib.request
+            import urllib.parse
             
-            # First try the local backend imports
-            backend_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), 'backend')
+            # Cloudflare endpoint for thought rambling
+            cloudflare_url = "https://huihui-cognee-processor.scott-c93.workers.dev/api/ramble-thoughts"
             
-            if os.path.exists(backend_path):
-                sys.path.insert(0, backend_path)
-                
-                try:
-                    from models.gemma_loader import get_gemma_model
-                    from spacy_llm_tasks.chunk_relationship import merge_related_chunks, ChunkRelationship
+            # Prepare request data
+            request_data = {
+                "text": text,
+                "provider": provider,
+                "model": model
+            }
+            
+            # Convert to JSON
+            json_data = json.dumps(request_data).encode('utf-8')
+            
+            # Create request
+            req = urllib.request.Request(
+                cloudflare_url,
+                data=json_data,
+                headers={
+                    'Content-Type': 'application/json',
+                    'User-Agent': 'ThoughtRambler/1.0'
+                }
+            )
+            
+            # Make request with timeout
+            try:
+                with urllib.request.urlopen(req, timeout=10) as response:
+                    response_data = json.loads(response.read().decode('utf-8'))
                     
-                    # Get basic chunks first
-                    basic_chunks = self.parse_thoughts_basic(text, provider, model)
-                    
-                    if len(basic_chunks) < 2:
-                        return basic_chunks
-                    
-                    # Try to initialize Gemma
-                    gemma = get_gemma_model()
-                    if not gemma.is_available():
-                        return None
-                    
-                    # Analyze relationships between chunks
-                    relationships = []
-                    
-                    for i, chunk1 in enumerate(basic_chunks):
-                        for j in range(i + 1, min(i + 3, len(basic_chunks))):  # Check adjacent chunks
-                            chunk2 = basic_chunks[j]
-                            
-                            prompt = f"""Analyze if these two text segments are related:
-
-Segment 1: "{chunk1['text']}"
-Segment 2: "{chunk2['text']}"
-
-Consider if they discuss the same topic, person, event, or are causally related.
-
-Respond with:
-RELATIONSHIP: [SAME_TOPIC|SAME_PERSON|SAME_EVENT|CAUSE_EFFECT|TEMPORAL|NONE]
-CONFIDENCE: [0.0 to 1.0]"""
-                            
-                            try:
-                                response = gemma([prompt])[0]
-                                relationship = self.parse_relationship_response(response, i, j)
-                                
-                                if relationship and relationship.get('confidence', 0) >= 0.7:
-                                    relationships.append(relationship)
-                                    
-                            except Exception as e:
-                                # Skip this relationship if analysis fails
-                                continue
-                    
-                    # Merge related chunks if relationships found
-                    if relationships:
-                        enhanced_chunks = merge_related_chunks(basic_chunks, relationships)
-                        return enhanced_chunks
-                    else:
-                        return basic_chunks
+                    if response_data.get('success'):
+                        # Transform Cloudflare response to our format
+                        cf_chunks = response_data.get('chunks', [])
                         
-                except ImportError:
-                    # Heavy dependencies not available
-                    return None
-            else:
-                # Backend directory not found
+                        # Convert to our chunk format
+                        chunks = []
+                        for i, chunk in enumerate(cf_chunks):
+                            chunks.append({
+                                'id': i + 1,
+                                'text': chunk.get('text', ''),
+                                'confidence': chunk.get('coherence_score', 0.85),
+                                'start_char': chunk.get('start_char', 0),
+                                'end_char': chunk.get('end_char', len(chunk.get('text', ''))),
+                                'topic_keywords': chunk.get('keywords', []),
+                                'sentiment': chunk.get('emotional_tone', 'neutral').lower(),
+                                'relationship_type': chunk.get('relationship_type', 'independent'),
+                                'llm_enhanced': True
+                            })
+                        
+                        return {
+                            'chunks': chunks,
+                            'llm_processed': True,
+                            'processing_time': response_data.get('processing_time', 0),
+                            'cloudflare_response': True,
+                            'model_used': model
+                        }
+                    else:
+                        # Cloudflare request failed
+                        return None
+                        
+            except Exception as e:
+                # Network or timeout error
                 return None
                 
         except Exception:
-            # Any error in LLM processing - fallback gracefully
+            # Any other error - fallback gracefully
             return None
     
     def parse_relationship_response(self, response, chunk1_id, chunk2_id):
