@@ -1,21 +1,10 @@
 # Vercel serverless function requirements
-# Core API dependencies
+# Core API dependencies (lightweight for serverless deployment)
 requests==2.31.0
 fastapi==0.104.1
-uvicorn[standard]==0.24.0
 pydantic==2.5.0
 python-dotenv==1.0.0
 
-# Gemma 270M dependencies for LLM-enhanced parsing
-# Note: These are heavy dependencies (~2GB) - deployment may take longer
-transformers==4.36.0
-torch==2.1.0
-accelerate==0.25.0
-sentencepiece==0.1.99
-tokenizers==0.15.0
-spacy==3.7.2
-spacy-llm==0.6.0
-
-# Optional LLM providers (lightweight)
-openai==1.3.0
-anthropic==0.8.0
+# Note: Heavy ML dependencies (transformers, torch, spacy) removed due to Vercel size limits
+# LLM enhancement will be implemented in a future iteration with external API calls
+# For now, using rule-based parsing with basic NLP functionality
