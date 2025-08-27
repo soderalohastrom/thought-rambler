@@ -8,9 +8,11 @@ A React-Vite application for splitting human thought rambles using spaCy LLM int
 - **Sample Data Testing**: Three test buttons (Small, Medium, Large) with realistic thought rambles
 - **Advanced NLP Processing**: Backend API with spaCy-llm integration for thought parsing
 - **Visual Chunking Display**: Color-coded parsed thought groups with sentiment analysis
+- **LLM Enhancement Toggle**: Toggle between basic rule-based parsing and AI-enhanced semantic analysis
 - **Configurable LLM Support**: Environment variable support for OpenAI, Anthropic, and other providers
 - **Professional Design**: Modern, responsive interface with subtle animations
 - **Real-time Processing**: Fast thought parsing with visual feedback
+- **Unified Deployment**: Single Vercel deployment for both frontend and backend APIs
 
 ## Technology Stack
 
