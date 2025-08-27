@@ -12,6 +12,10 @@
       "dest": "/api/parse-thoughts.py"
     },
     {
+      "src": "/api/parse-thoughts-llm",
+      "dest": "/api/parse-thoughts-llm.py"
+    },
+    {
       "src": "/health", 
       "dest": "/api/health.py"
     },
