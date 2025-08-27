@@ -40,15 +40,15 @@ class ThoughtParserAPI {
   private baseURL: string;
 
   constructor(baseURL?: string) {
-    // Use environment variable or explicit backend URL
+    // Use environment variable or current origin for unified deployment
     this.baseURL = baseURL || 
       (typeof window !== 'undefined' && window.location.origin.includes('localhost') 
         ? 'http://localhost:8000' 
-        : 'https://backend-1md2v1tzp-soderalohastroms-projects.vercel.app');
+        : window.location.origin);
   }
 
   async healthCheck() {
-    const response = await fetch(`${this.baseURL}/api/health`);
+    const response = await fetch(`${this.baseURL}/health`);
     if (!response.ok) {
       throw new Error(`Health check failed: ${response.statusText}`);
     }
