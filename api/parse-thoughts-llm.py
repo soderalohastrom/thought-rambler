@@ -106,11 +106,12 @@ class handler(BaseHTTPRequestHandler):
             # Cloudflare endpoint for thought rambling
             cloudflare_url = "https://huihui-cognee-processor.scott-c93.workers.dev/api/ramble-thoughts"
             
-            # Prepare request data
+            # Prepare request data matching Cloudflare API format
             request_data = {
                 "text": text,
-                "provider": provider,
-                "model": model
+                "mode": "split_and_group",
+                "context": "general",
+                "options": {}
             }
             
             # Convert to JSON
@@ -133,20 +134,31 @@ class handler(BaseHTTPRequestHandler):
                     
                     if response_data.get('success'):
                         # Transform Cloudflare response to our format
-                        cf_chunks = response_data.get('chunks', [])
+                        thought_groups = response_data.get('thought_groups', [])
                         
-                        # Convert to our chunk format
+                        # Convert thought groups to our chunk format
                         chunks = []
-                        for i, chunk in enumerate(cf_chunks):
+                        for i, group in enumerate(thought_groups):
+                            # Extract keywords from the text (simple approach)
+                            text = group.get('combined_text', '')
+                            keywords = []
+                            
+                            # Extract meaningful words as keywords
+                            import re
+                            words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
+                            stop_words = {'the', 'and', 'but', 'for', 'with', 'this', 'that', 'was', 'are', 'have', 'you', 'they', 'she', 'her', 'his', 'him'}
+                            keywords = [w for w in words if w not in stop_words][:3]
+                            
                             chunks.append({
-                                'id': i + 1,
-                                'text': chunk.get('text', ''),
-                                'confidence': chunk.get('coherence_score', 0.85),
-                                'start_char': chunk.get('start_char', 0),
-                                'end_char': chunk.get('end_char', len(chunk.get('text', ''))),
-                                'topic_keywords': chunk.get('keywords', []),
-                                'sentiment': chunk.get('emotional_tone', 'neutral').lower(),
-                                'relationship_type': chunk.get('relationship_type', 'independent'),
+                                'id': group.get('id', i + 1),
+                                'text': text,
+                                'confidence': group.get('confidence', 0.85),
+                                'start_char': 0,  # Cloudflare doesn't provide char positions
+                                'end_char': len(text),
+                                'topic_keywords': keywords,
+                                'sentiment': group.get('emotional_tone', 'neutral').lower(),
+                                'theme': group.get('theme', 'general'),
+                                'original_segments': group.get('original_segments', []),
                                 'llm_enhanced': True
                             })
                         
@@ -155,7 +167,8 @@ class handler(BaseHTTPRequestHandler):
                             'llm_processed': True,
                             'processing_time': response_data.get('processing_time', 0),
                             'cloudflare_response': True,
-                            'model_used': model
+                            'model_used': response_data.get('model_used', model),
+                            'coherence_score': response_data.get('analysis', {}).get('coherence_score', 0.85)
                         }
                     else:
                         # Cloudflare request failed
