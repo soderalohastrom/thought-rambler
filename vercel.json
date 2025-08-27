@@ -3,18 +3,18 @@
   "outputDirectory": "thought-ramble-parser/dist",
   "framework": "vite",
   "functions": {
-    "backend/api/*.py": {
+    "api/*.py": {
       "runtime": "python3.9"
     }
   },
   "routes": [
     {
       "src": "/api/(.*)",
-      "dest": "/backend/api/$1.py"
+      "dest": "/api/$1.py"
     },
     {
-      "src": "/health",
-      "dest": "/backend/api/health.py"
+      "src": "/health", 
+      "dest": "/api/health.py"
     },
     {
       "src": "/(.*)",
