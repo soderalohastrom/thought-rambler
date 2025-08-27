@@ -4,19 +4,18 @@ import json
 import time
 import re
 
-def handler(request):
+def handler(request, response):
     """Main Vercel handler function for LLM-enhanced parsing"""
     # Set CORS headers
-    headers = {
-        "Access-Control-Allow-Origin": "*",
-        "Access-Control-Allow-Methods": "POST, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type",
-        "Content-Type": "application/json"
-    }
+    response.headers["Access-Control-Allow-Origin"] = "*"
+    response.headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Content-Type"] = "application/json"
     
     # Handle CORS preflight
     if request.method == 'OPTIONS':
-        return ('', 200, headers)
+        response.status = 200
+        return
     
     try:
         # Get request data
@@ -25,12 +24,16 @@ def handler(request):
             if not data:
                 data = {}
         else:
-            return (json.dumps({"detail": "Method not allowed"}), 405, headers)
+            response.status = 405
+            response.json({"detail": "Method not allowed"})
+            return
         
         # Validate input
         text = data.get('text', '').strip()
         if not text:
-            return (json.dumps({"detail": "Text input cannot be empty"}), 400, headers)
+            response.status = 400
+            response.json({"detail": "Text input cannot be empty"})
+            return
         
         # Extract parameters
         enable_llm = data.get('enable_llm', False)
@@ -57,11 +60,12 @@ def handler(request):
             }
         }
         
-        return (json.dumps(result), 200, headers)
+        response.status = 200
+        response.json(result)
         
     except Exception as e:
-        error_response = {"detail": f"Error processing request: {str(e)}"}
-        return (json.dumps(error_response), 500, headers)
+        response.status = 500
+        response.json({"detail": f"Error processing request: {str(e)}"})
 
 def basic_parse_text(text: str):
     """Basic text parsing without heavy dependencies"""
