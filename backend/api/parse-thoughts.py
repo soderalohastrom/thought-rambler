@@ -2,6 +2,11 @@ from http.server import BaseHTTPRequestHandler
 import json
 import re
 import time
+import sys
+import os
+
+# Ensure we don't import the main app by accident
+sys.path = [path for path in sys.path if 'backend' not in path or 'api' in path]
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -53,7 +58,13 @@ class handler(BaseHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Origin', '*')
             self.end_headers()
             
-            error_response = {"error": f"Error processing text: {str(e)}"}
+            # Provide detailed error information for debugging
+            import traceback
+            error_response = {
+                "error": f"Error processing text: {str(e)}", 
+                "type": type(e).__name__,
+                "traceback": traceback.format_exc()
+            }
             self.wfile.write(json.dumps(error_response).encode())
     
     def do_OPTIONS(self):
