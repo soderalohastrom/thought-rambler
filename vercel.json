@@ -9,16 +9,24 @@
   },
   "routes": [
     {
-      "src": "/api/(.*)",
-      "dest": "/api/$1.py"
+      "src": "/api/test",
+      "dest": "/api/test.py"
+    },
+    {
+      "src": "/api/parse-thoughts",
+      "dest": "/api/parse-thoughts.py"
     },
     {
       "src": "/health", 
       "dest": "/api/health.py"
     },
     {
+      "src": "/api/(.*)",
+      "dest": "/api/$1.py"
+    },
+    {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/$1"
     }
   ]
 }
