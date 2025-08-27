@@ -36,17 +36,34 @@ class handler(BaseHTTPRequestHandler):
             # Parse thoughts - try LLM enhancement if enabled, fallback to basic
             start_time = time.time()
             
+            # Initialize verbose log for UI display
+            verbose_log = None
+            llm_response_data = None
+            
             if enable_llm:
                 # Try to use Cloudflare Workers LLM enhancement
-                chunks = self.parse_thoughts_llm_enhanced(text, provider, model)
-                if chunks is not None and chunks.get('llm_processed', False):
+                llm_response = self.parse_thoughts_llm_enhanced(text, provider, model)
+                
+                # Extract verbose log for UI display
+                if llm_response and 'verbose_log' in llm_response:
+                    verbose_log = llm_response['verbose_log']
+                
+                if llm_response and llm_response.get('llm_processed', False):
                     # Successfully got LLM response
                     llm_enhanced = True
-                    chunks = chunks.get('chunks', [])
+                    chunks = llm_response.get('chunks', [])
+                    llm_response_data = {
+                        'cloudflare_success': llm_response.get('cloudflare_response', False),
+                        'model_used': llm_response.get('model_used', model),
+                        'coherence_score': llm_response.get('coherence_score', 0),
+                        'analysis_full': llm_response.get('analysis_full', {}),
+                        'processing_time_cloudflare': llm_response.get('processing_time', 0)
+                    }
                 else:
                     # Fallback to basic parsing
                     chunks = self.parse_thoughts_basic(text, provider, model)
                     llm_enhanced = False
+                    # Still preserve the verbose log from failed LLM attempt
             else:
                 # Use basic parsing
                 chunks = self.parse_thoughts_basic(text, provider, model)
@@ -54,7 +71,7 @@ class handler(BaseHTTPRequestHandler):
             
             processing_time = time.time() - start_time
             
-            # Create response
+            # Create response with comprehensive logging
             response = {
                 "chunks": chunks,
                 "total_chunks": len(chunks),
@@ -71,6 +88,21 @@ class handler(BaseHTTPRequestHandler):
                     "average_chunk_length": sum(len(chunk['text']) for chunk in chunks) / len(chunks) if chunks else 0,
                     "debug_chunks_count": len(chunks),
                     "debug_chunks_type": type(chunks).__name__
+                },
+                # Add verbose logging data for UI display
+                "verbose_log": verbose_log,
+                "llm_details": llm_response_data,
+                "request_info": {
+                    "endpoint_used": "/api/parse-thoughts-llm",
+                    "fallback_occurred": enable_llm and not llm_enhanced,
+                    "request_timestamp": start_time,
+                    "processing_steps": [
+                        "Text preprocessing",
+                        "Cloudflare Workers API call" if enable_llm else "Rule-based parsing",
+                        "Response transformation",
+                        "Chunk creation",
+                        "Metadata generation"
+                    ]
                 }
             }
             
@@ -100,10 +132,29 @@ class handler(BaseHTTPRequestHandler):
         self.wfile.write(b'')
     
     def parse_thoughts_llm_enhanced(self, text, provider="cloudflare", model="llama-3.1-8b-instruct-fast"):
-        """Use Cloudflare Workers LLM for enhanced thought parsing"""
+        """Use Cloudflare Workers LLM for enhanced thought parsing with verbose logging"""
+        verbose_log = {
+            "step": "initialization",
+            "cloudflare_endpoint": "https://huihui-cognee-processor.scott-c93.workers.dev/api/ramble-thoughts",
+            "model": model,
+            "provider": provider,
+            "input_text_length": len(text),
+            "input_text_preview": text[:200] + "..." if len(text) > 200 else text,
+            "timestamp": time.time(),
+            "request_prepared": False,
+            "request_sent": False,
+            "response_received": False,
+            "response_parsed": False,
+            "chunks_created": False,
+            "error": None,
+            "warnings": []
+        }
+        
         try:
             import urllib.request
             import urllib.parse
+            
+            verbose_log["step"] = "preparing_request"
             
             # Cloudflare endpoint for thought rambling
             cloudflare_url = "https://huihui-cognee-processor.scott-c93.workers.dev/api/ramble-thoughts"
@@ -116,47 +167,114 @@ class handler(BaseHTTPRequestHandler):
                 "options": {}
             }
             
+            verbose_log["request_data"] = {
+                "text_length": len(request_data["text"]),
+                "mode": request_data["mode"],
+                "context": request_data["context"],
+                "options": request_data["options"]
+            }
+            
             # Convert to JSON
             json_data = json.dumps(request_data).encode('utf-8')
+            verbose_log["request_body_size"] = len(json_data)
+            verbose_log["request_prepared"] = True
             
             # Create request
+            headers = {
+                'Content-Type': 'application/json',
+                'User-Agent': 'ThoughtRambler/1.0',
+                'Accept': 'application/json'
+            }
+            
             req = urllib.request.Request(
                 cloudflare_url,
                 data=json_data,
-                headers={
-                    'Content-Type': 'application/json',
-                    'User-Agent': 'ThoughtRambler/1.0'
-                }
+                headers=headers
             )
+            
+            verbose_log["request_headers"] = headers
+            verbose_log["step"] = "sending_request"
             
             # Make request with timeout
             try:
-                with urllib.request.urlopen(req, timeout=10) as response:
-                    response_data = json.loads(response.read().decode('utf-8'))
+                request_start_time = time.time()
+                verbose_log["request_start_time"] = request_start_time
+                
+                with urllib.request.urlopen(req, timeout=15) as response:
+                    request_end_time = time.time()
+                    verbose_log["request_duration"] = request_end_time - request_start_time
+                    verbose_log["response_status"] = response.getcode()
+                    verbose_log["response_headers"] = dict(response.headers)
+                    verbose_log["request_sent"] = True
+                    verbose_log["response_received"] = True
+                    
+                    # Read response
+                    response_text = response.read().decode('utf-8')
+                    verbose_log["response_body_size"] = len(response_text)
+                    verbose_log["response_text_preview"] = response_text[:500] + "..." if len(response_text) > 500 else response_text
+                    
+                    verbose_log["step"] = "parsing_response"
+                    
+                    try:
+                        response_data = json.loads(response_text)
+                        verbose_log["response_parsed"] = True
+                        verbose_log["response_json_keys"] = list(response_data.keys())
+                        verbose_log["response_success"] = response_data.get('success', False)
+                        
+                        # Log full response structure for debugging
+                        verbose_log["cloudflare_response_full"] = response_data
+                        
+                    except json.JSONDecodeError as e:
+                        verbose_log["error"] = f"JSON decode error: {str(e)}"
+                        verbose_log["response_is_json"] = False
+                        return {
+                            'chunks': [],
+                            'llm_processed': False,
+                            'verbose_log': verbose_log,
+                            'error': f'Invalid JSON response from Cloudflare: {str(e)}'
+                        }
+                    
+                    verbose_log["step"] = "processing_response"
                     
                     if response_data.get('success'):
                         # Transform Cloudflare response to our format
                         thought_groups = response_data.get('thought_groups', [])
+                        verbose_log["thought_groups_count"] = len(thought_groups)
+                        verbose_log["thought_groups_raw"] = thought_groups
                         
                         # Convert thought groups to our chunk format
                         chunks = []
                         for i, group in enumerate(thought_groups):
                             # Extract keywords from the text (simple approach)
-                            text = group.get('combined_text', '')
-                            keywords = []
+                            group_text = group.get('combined_text', '')
+                            
+                            # Log each group processing
+                            group_log = {
+                                "group_index": i,
+                                "group_id": group.get('id', i + 1),
+                                "text_length": len(group_text),
+                                "theme": group.get('theme', 'general'),
+                                "confidence": group.get('confidence', 0.85),
+                                "emotional_tone": group.get('emotional_tone', 'neutral'),
+                                "original_segments_count": len(group.get('original_segments', [])),
+                                "raw_group": group
+                            }
+                            
+                            if i == 0:  # Log detailed info for first group
+                                verbose_log["first_group_detail"] = group_log
                             
                             # Extract meaningful words as keywords
                             import re
-                            words = re.findall(r'\b[a-zA-Z]{3,}\b', text.lower())
+                            words = re.findall(r'\b[a-zA-Z]{3,}\b', group_text.lower())
                             stop_words = {'the', 'and', 'but', 'for', 'with', 'this', 'that', 'was', 'are', 'have', 'you', 'they', 'she', 'her', 'his', 'him'}
                             keywords = [w for w in words if w not in stop_words][:3]
                             
                             chunks.append({
                                 'id': group.get('id', i + 1),
-                                'text': text,
+                                'text': group_text,
                                 'confidence': group.get('confidence', 0.85),
                                 'start_char': 0,  # Cloudflare doesn't provide char positions
-                                'end_char': len(text),
+                                'end_char': len(group_text),
                                 'topic_keywords': keywords,
                                 'sentiment': group.get('emotional_tone', 'neutral').lower(),
                                 'theme': group.get('theme', 'general'),
@@ -164,30 +282,106 @@ class handler(BaseHTTPRequestHandler):
                                 'llm_enhanced': True
                             })
                         
+                        verbose_log["chunks_created"] = True
+                        verbose_log["final_chunks_count"] = len(chunks)
+                        verbose_log["step"] = "success"
+                        
+                        # Add processing metadata from Cloudflare
+                        cloudflare_metadata = {
+                            'processing_time': response_data.get('processing_time', 0),
+                            'model_used': response_data.get('model_used', model),
+                            'coherence_score': response_data.get('analysis', {}).get('coherence_score', 0.85),
+                            'analysis_full': response_data.get('analysis', {}),
+                            'cloudflare_success': True
+                        }
+                        
+                        verbose_log["cloudflare_metadata"] = cloudflare_metadata
+                        
                         return {
                             'chunks': chunks,
                             'llm_processed': True,
-                            'processing_time': response_data.get('processing_time', 0),
+                            'verbose_log': verbose_log,
                             'cloudflare_response': True,
-                            'model_used': response_data.get('model_used', model),
-                            'coherence_score': response_data.get('analysis', {}).get('coherence_score', 0.85)
+                            **cloudflare_metadata
                         }
                     else:
-                        # Cloudflare request failed
-                        return None
+                        # Cloudflare request failed but got response
+                        verbose_log["error"] = f"Cloudflare API returned success=false: {response_data.get('error', 'Unknown error')}"
+                        verbose_log["step"] = "cloudflare_api_error"
+                        return {
+                            'chunks': [],
+                            'llm_processed': False,
+                            'verbose_log': verbose_log,
+                            'error': verbose_log["error"]
+                        }
                         
-            except Exception as e:
-                # Network or timeout error - return error details for debugging
+            except urllib.error.HTTPError as e:
+                # HTTP error
+                verbose_log["error"] = f"HTTP error {e.code}: {e.reason}"
+                verbose_log["http_error_code"] = e.code
+                verbose_log["http_error_reason"] = e.reason
+                verbose_log["step"] = "http_error"
+                
+                try:
+                    error_body = e.read().decode('utf-8')
+                    verbose_log["error_response_body"] = error_body
+                except:
+                    pass
+                
                 return {
                     'chunks': [],
                     'llm_processed': False,
-                    'error': str(e),
+                    'verbose_log': verbose_log,
+                    'error': verbose_log["error"],
+                    'error_type': 'http_error'
+                }
+                
+            except urllib.error.URLError as e:
+                # URL/network error
+                verbose_log["error"] = f"Network error: {str(e.reason)}"
+                verbose_log["step"] = "network_error"
+                
+                return {
+                    'chunks': [],
+                    'llm_processed': False,
+                    'verbose_log': verbose_log,
+                    'error': verbose_log["error"],
+                    'error_type': 'network_error'
+                }
+                
+            except Exception as e:
+                # Network or timeout error - return error details for debugging
+                verbose_log["error"] = f"Request exception: {str(e)}"
+                verbose_log["error_type"] = type(e).__name__
+                verbose_log["step"] = "request_exception"
+                
+                import traceback
+                verbose_log["traceback"] = traceback.format_exc()
+                
+                return {
+                    'chunks': [],
+                    'llm_processed': False,
+                    'verbose_log': verbose_log,
+                    'error': verbose_log["error"],
                     'error_type': 'network_timeout'
                 }
                 
-        except Exception:
+        except Exception as e:
             # Any other error - fallback gracefully
-            return None
+            verbose_log["error"] = f"General exception: {str(e)}"
+            verbose_log["error_type"] = type(e).__name__
+            verbose_log["step"] = "general_exception"
+            
+            import traceback
+            verbose_log["traceback"] = traceback.format_exc()
+            
+            return {
+                'chunks': [],
+                'llm_processed': False,
+                'verbose_log': verbose_log,
+                'error': verbose_log["error"],
+                'error_type': 'general_error'
+            }
     
     def parse_relationship_response(self, response, chunk1_id, chunk2_id):
         """Parse Gemma's relationship response"""

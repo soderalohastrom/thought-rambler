@@ -9,6 +9,7 @@ A React-Vite application for splitting human thought rambles using spaCy LLM int
 - **Advanced NLP Processing**: Backend API with spaCy-llm integration for thought parsing
 - **Visual Chunking Display**: Color-coded parsed thought groups with sentiment analysis
 - **LLM Enhancement Toggle**: Toggle between basic rule-based parsing and AI-enhanced semantic analysis
+- **Cloudflare Workers LLM**: Integrated Llama 3.1-8B-Instruct-Fast model via external API
 - **Configurable LLM Support**: Environment variable support for OpenAI, Anthropic, and other providers
 - **Professional Design**: Modern, responsive interface with subtle animations
 - **Real-time Processing**: Fast thought parsing with visual feedback
@@ -26,6 +27,7 @@ A React-Vite application for splitting human thought rambles using spaCy LLM int
 ### Backend
 - **FastAPI** for high-performance API
 - **spaCy** with LLM integration for advanced NLP
+- **Cloudflare Workers** integration with Llama 3.1-8B-Instruct-Fast model
 - **Python 3.11+** with modern async support
 - **CORS enabled** for frontend integration
 
@@ -88,7 +90,8 @@ A React-Vite application for splitting human thought rambles using spaCy LLM int
 ### Core Endpoints
 
 - `GET /health` - Health check and system status
-- `POST /api/parse-thoughts` - Main thought parsing endpoint
+- `POST /api/parse-thoughts` - Rule-based thought parsing endpoint
+- `POST /api/parse-thoughts-llm` - AI-enhanced parsing with Cloudflare Workers LLM
 
 ### Request Format
 ```json
@@ -173,7 +176,8 @@ DEBUG=False
 ### Backend Architecture
 - **FastAPI**: High-performance async API framework
 - **NLP Pipeline**: spaCy-based text processing with thought boundary detection
-- **Rule-based Parsing**: Advanced linguistic analysis for thought chunking
+- **Cloudflare Workers Integration**: Offloads heavy LLM processing to edge computing
+- **Rule-based Parsing**: Advanced linguistic analysis for thought chunking with graceful fallback
 - **Extensible Design**: Easy integration of additional LLM providers
 
 ### Thought Parsing Algorithm

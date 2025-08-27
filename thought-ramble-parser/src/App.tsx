@@ -3,6 +3,7 @@ import { type ThoughtParseResponse } from '@/lib/api';
 import { InputPanel } from '@/components/InputPanel';
 import { OutputPanel } from '@/components/OutputPanel';
 import { LLMToggle } from '@/components/LLMToggle';
+import { DebugPanel } from '@/components/DebugPanel';
 import { Toaster } from '@/components/ui/toaster';
 import { Brain, Github, Sparkles } from 'lucide-react';
 
@@ -10,6 +11,7 @@ function App() {
   const [parseResult, setParseResult] = useState<ThoughtParseResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [llmEnabled, setLlmEnabled] = useState(false);
+  const [debugPanelOpen, setDebugPanelOpen] = useState(false);
 
   const handleParseResult = (result: ThoughtParseResponse) => {
     setParseResult(result);
@@ -80,6 +82,13 @@ function App() {
       </footer>
 
       <Toaster />
+      
+      {/* Debug Panel */}
+      <DebugPanel 
+        isOpen={debugPanelOpen}
+        onToggle={() => setDebugPanelOpen(!debugPanelOpen)}
+        result={parseResult}
+      />
     </div>
   );
 }

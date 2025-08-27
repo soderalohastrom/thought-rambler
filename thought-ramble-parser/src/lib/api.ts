@@ -17,6 +17,45 @@ export interface ThoughtParseRequest {
   enable_llm?: boolean;
 }
 
+export interface VerboseLog {
+  step: string;
+  cloudflare_endpoint?: string;
+  model?: string;
+  provider?: string;
+  input_text_length?: number;
+  input_text_preview?: string;
+  timestamp?: number;
+  request_prepared?: boolean;
+  request_sent?: boolean;
+  response_received?: boolean;
+  response_parsed?: boolean;
+  chunks_created?: boolean;
+  error?: string | null;
+  warnings?: string[];
+  request_data?: any;
+  request_body_size?: number;
+  request_headers?: any;
+  request_start_time?: number;
+  request_duration?: number;
+  response_status?: number;
+  response_headers?: any;
+  response_body_size?: number;
+  response_text_preview?: string;
+  response_json_keys?: string[];
+  response_success?: boolean;
+  cloudflare_response_full?: any;
+  thought_groups_count?: number;
+  thought_groups_raw?: any[];
+  first_group_detail?: any;
+  chunks_created_count?: number;
+  cloudflare_metadata?: any;
+  http_error_code?: number;
+  http_error_reason?: string;
+  error_response_body?: string;
+  error_type?: string;
+  traceback?: string;
+}
+
 export interface ThoughtParseResponse {
   chunks: ThoughtChunk[];
   total_chunks: number;
@@ -27,6 +66,21 @@ export interface ThoughtParseResponse {
     model: string;
     average_chunk_length: number;
     llm_enhanced?: boolean;
+  };
+  // Extended logging data for debugging
+  verbose_log?: VerboseLog;
+  llm_details?: {
+    cloudflare_success?: boolean;
+    model_used?: string;
+    coherence_score?: number;
+    analysis_full?: any;
+    processing_time_cloudflare?: number;
+  };
+  request_info?: {
+    endpoint_used?: string;
+    fallback_occurred?: boolean;
+    request_timestamp?: number;
+    processing_steps?: string[];
   };
 }
 

@@ -67,16 +67,20 @@ vercel --prod
 ### Backend Architecture (backend/)
 - **Framework**: FastAPI with async support and automatic OpenAPI docs
 - **NLP Processing**: Rule-based thought parsing using `SimpleThoughtParser` class
+- **Cloudflare Workers Integration**: Llama 3.1-8B-Instruct-Fast model via external API
 - **Key Features**:
   - Linguistic boundary detection using transition markers
   - Sentiment analysis and keyword extraction
   - Confidence scoring for parsed chunks
+  - AI-enhanced semantic chunking with graceful fallback
 - **API Endpoints**:
   - `GET /health` - System health check
-  - `POST /api/parse-thoughts` - Main thought parsing endpoint
+  - `POST /api/parse-thoughts` - Rule-based thought parsing endpoint
+  - `POST /api/parse-thoughts-llm` - AI-enhanced parsing with Cloudflare Workers
 
 ### Thought Parsing Algorithm
-The `SimpleThoughtParser` class implements:
+
+#### Rule-Based Parsing (`SimpleThoughtParser`)
 1. **Text Preprocessing**: Normalize whitespace, filter speech patterns (um, uh)
 2. **Sentence Segmentation**: Split on punctuation + conjunctions (and, but, so, then)
 3. **Boundary Detection**: Identify thought transitions using transition markers:
@@ -86,6 +90,14 @@ The `SimpleThoughtParser` class implements:
    - Decision: I should, I need to, let me
 4. **Enhancement**: Add keyword extraction + basic sentiment analysis
 5. **Confidence Scoring**: Provide reliability metrics for each chunk
+
+#### LLM-Enhanced Parsing (Cloudflare Workers)
+1. **External API Call**: Send text to `https://huihui-cognee-processor.scott-c93.workers.dev/api/ramble-thoughts`
+2. **Request Format**: `{"text": input, "mode": "split_and_group", "context": "general", "options": {}}`
+3. **Model**: Llama 3.1-8B-Instruct-Fast for semantic understanding
+4. **Response Processing**: Extract `thought_groups` with theme, confidence, emotional_tone
+5. **Graceful Fallback**: Use rule-based parsing if Cloudflare unavailable
+6. **Vercel Compatibility**: Bypasses 50MB serverless function size limits
 
 ### Key Data Models (TypeScript/Python)
 ```typescript
@@ -134,9 +146,10 @@ Uses extensive Radix UI component library with custom styling:
 - TypeScript strict mode with separate configs for app and build tools
 
 ### Backend Dependencies
-- **Core**: FastAPI, Uvicorn, spaCy, Pydantic
-- **LLM Support**: OpenAI SDK, Anthropic SDK (for future LLM integration)
-- **NLP**: Currently rule-based, prepared for spaCy-LLM integration
+- **Core**: FastAPI, Uvicorn, spaCy, Pydantic, requests
+- **LLM Support**: Cloudflare Workers integration (Llama 3.1-8B-Instruct-Fast)
+- **NLP**: Rule-based parsing with AI enhancement via external API
+- **Legacy Support**: OpenAI SDK, Anthropic SDK (for future direct integration)
 
 ### Local Development Workflow
 1. Start backend: `cd backend && uvicorn app:app --reload --host 0.0.0.0 --port 8000`
@@ -150,5 +163,33 @@ Backend allows all origins (`allow_origins=["*"]`) - configure for production se
 ### File Organization
 - Frontend source in `thought-ramble-parser/src/`
 - Backend logic concentrated in single `backend/app.py` file
+- **Vercel Serverless Functions**: `/api/parse-thoughts.py`, `/api/parse-thoughts-llm.py`
 - Sample data in `backend/sample_data.py` and `thought-ramble-parser/public/data/`
 - Deployment config in root-level `vercel.json`
+
+### LLM Integration Details
+
+#### Cloudflare Workers Endpoint
+- **URL**: `https://huihui-cognee-processor.scott-c93.workers.dev/api/ramble-thoughts`
+- **Model**: Llama 3.1-8B-Instruct-Fast (sister app integration)
+- **Purpose**: Offload heavy LLM processing from Vercel to edge computing
+- **Fallback**: Graceful degradation to rule-based parsing if unavailable
+
+#### API Integration Pattern
+```python
+def parse_thoughts_llm_enhanced(self, text, provider="cloudflare", model="llama-3.1-8b-instruct-fast"):
+    cloudflare_url = "https://huihui-cognee-processor.scott-c93.workers.dev/api/ramble-thoughts"
+    request_data = {
+        "text": text,
+        "mode": "split_and_group",
+        "context": "general",
+        "options": {}
+    }
+    # Process response.json()["thought_groups"] into standard chunk format
+```
+
+#### Key Implementation Notes
+- **Vercel Limitations**: 50MB function size prevents local transformers/PyTorch
+- **Solution**: External API call to Cloudflare Workers for LLM processing
+- **Response Format**: Cloudflare returns `thought_groups` array, converted to standard `chunks`
+- **Error Handling**: Network failures gracefully fall back to spaCy rule-based parsing
