@@ -1,0 +1,3 @@
+# Minimal requirements for Vercel serverless functions
+# These are lightweight dependencies for the rule-based parser
+requests==2.31.0
