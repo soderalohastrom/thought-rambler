@@ -37,14 +37,14 @@ class handler(BaseHTTPRequestHandler):
             start_time = time.time()
             
             if enable_llm:
-                # Try to use Gemma/LLM enhancement
-                chunks = self.parse_thoughts_llm_enhanced(text, provider, model)
-                llm_enhanced = chunks is not None
+                # For now, just use basic parsing with a note that LLM is requested
+                # This ensures the endpoint works while we debug the Gemma integration
+                chunks = self.parse_thoughts_basic(text, provider, model)
+                llm_enhanced = False  # Will be True when Gemma is working
                 
-                if not chunks:
-                    # Fallback to basic parsing
-                    chunks = self.parse_thoughts_basic(text, provider, model)
-                    llm_enhanced = False
+                # Add a note to the first chunk that LLM was requested
+                if chunks:
+                    chunks[0]['llm_requested'] = True
             else:
                 # Use basic parsing
                 chunks = self.parse_thoughts_basic(text, provider, model)
@@ -62,6 +62,9 @@ class handler(BaseHTTPRequestHandler):
                     "provider": provider,
                     "model": model,
                     "llm_enhanced": llm_enhanced,
+                    "llm_requested": enable_llm,
+                    "endpoint": "parse-thoughts-llm",
+                    "note": "LLM endpoint working - Gemma integration in progress" if enable_llm else "Basic parsing via LLM endpoint",
                     "average_chunk_length": sum(len(chunk['text']) for chunk in chunks) / len(chunks) if chunks else 0
                 }
             }
@@ -140,7 +143,7 @@ CONFIDENCE: [0.0 to 1.0]"""
                                 response = gemma([prompt])[0]
                                 relationship = self.parse_relationship_response(response, i, j)
                                 
-                                if relationship and relationship.confidence >= 0.7:
+                                if relationship and relationship.get('confidence', 0) >= 0.7:
                                     relationships.append(relationship)
                                     
                             except Exception as e:
