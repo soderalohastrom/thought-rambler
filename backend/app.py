@@ -12,6 +12,14 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(title="Thought Ramble Parser", description="API for parsing human thought rambles using advanced NLP")
 
+# Import and include triage routes
+try:
+    from triage.api_routes import router as triage_router
+    app.include_router(triage_router)
+    logger.info("Triage routes loaded successfully")
+except ImportError as e:
+    logger.warning(f"Could not load triage routes: {e}")
+
 # CORS configuration for frontend integration
 app.add_middleware(
     CORSMiddleware,
