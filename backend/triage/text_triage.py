@@ -1,6 +1,7 @@
 """
 Text Triage System - Main orchestrator
 Intelligently routes text through appropriate processing pipelines
+Enhanced with NLP Core for STT optimization
 """
 
 import re
@@ -8,9 +9,13 @@ import asyncio
 import logging
 from typing import Dict, List, Optional, Any
 from datetime import datetime
+import sys
+import os
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from .gibberish_detector import GibberishDetector
 from .url_inference import URLInferenceEngine
+from nlp_core import NLPCore
 
 logger = logging.getLogger(__name__)
 
@@ -20,10 +25,24 @@ class TextTriageSystem:
     Routes to: thoughts, URLs, TODOs, or quarantine
     """
     
-    def __init__(self, thought_parser=None):
+    def __init__(self, thought_parser=None, use_smart_segmentation=True):
         self.gibberish_detector = GibberishDetector()
         self.url_engine = URLInferenceEngine()
         self.thought_parser = thought_parser  # Will be injected from main app
+        self.use_smart_segmentation = use_smart_segmentation
+        
+        # Initialize NLP core for smart segmentation
+        if use_smart_segmentation:
+            try:
+                self.nlp_core = NLPCore()
+                logger.info("Smart segmentation enabled with spaCy")
+            except Exception as e:
+                logger.warning(f"Failed to load NLP core: {e}, falling back to basic segmentation")
+                self.use_smart_segmentation = False
+                self.nlp_core = None
+        else:
+            self.nlp_core = None
+        self.use_smart_segmentation = use_smart_segmentation
         
         # Statistics tracking
         self.stats = {
@@ -33,7 +52,9 @@ class TextTriageSystem:
             'urls_inferred': 0,
             'todos': 0,
             'gibberish': 0,
-            'salvaged': 0
+            'salvaged': 0,
+            'entities_found': 0,
+            'smart_segments': 0
         }
         
         # Quarantine storage
@@ -50,13 +71,21 @@ class TextTriageSystem:
             r'\b(pay|send|submit|file)\s+\w+'
         ]
     
-    async def process_text_dump(self, text: str) -> Dict:
+    async def process_text_dump(self, text: str, segmentation_mode: str = 'balanced') -> Dict:
         """
-        Process a large text dump (like SMS messages)
+        Process a large text dump (like SMS messages or STT output)
         Splits and categorizes each chunk intelligently
+        
+        segmentation_mode: 'strict', 'balanced', or 'loose'
+        - strict: One sentence = one chunk (best for SMS)
+        - balanced: Group related sentences (best for STT)
+        - loose: Larger semantic chunks (best for essays)
         """
-        # Split text into chunks (by newlines, periods, or SMS-like patterns)
-        chunks = self._split_into_chunks(text)
+        # Use smart or basic segmentation based on configuration
+        if self.use_smart_segmentation and self.nlp_core:
+            chunks = self._smart_split_into_chunks(text, segmentation_mode)
+        else:
+            chunks = self._split_into_chunks(text)
         
         results = {
             'thoughts': [],
@@ -69,12 +98,17 @@ class TextTriageSystem:
         }
         
         for i, chunk in enumerate(chunks):
-            chunk = chunk.strip()
+            chunk = chunk.strip() if isinstance(chunk, str) else chunk.get('text', '').strip()
             if not chunk:
                 continue
             
-            # Process each chunk
-            chunk_result = await self.process_chunk(chunk)
+            # Extract entities if we have NLP core
+            entities = []
+            if self.use_smart_segmentation and self.nlp_core:
+                entities = self.nlp_core.extract_entities(chunk)
+            
+            # Process each chunk with entity awareness
+            chunk_result = await self.process_chunk(chunk, entities)
             
             # Log the processing
             results['processing_log'].append({
@@ -101,9 +135,10 @@ class TextTriageSystem:
         
         return results
     
-    async def process_chunk(self, chunk: str) -> Dict:
+    async def process_chunk(self, chunk: str, entities: List[Tuple] = None) -> Dict:
         """
         Process a single text chunk through the triage pipeline
+        Now enhanced with entity awareness from spaCy
         """
         self.stats['total_processed'] += 1
         
@@ -151,8 +186,8 @@ class TextTriageSystem:
                     'quality_score': quality_analysis['quality_score']
                 }
         
-        # Step 4: Check for TODO patterns
-        todo_match = self._detect_todo(chunk)
+        # Step 4: Check for TODO patterns (enhanced with entity awareness)
+        todo_match = self._detect_todo(chunk, entities)
         if todo_match:
             self.stats['todos'] += 1
             return {
@@ -161,11 +196,12 @@ class TextTriageSystem:
                 'urgency': todo_match['urgency'],
                 'original_text': chunk,
                 'confidence': todo_match['confidence'],
-                'timestamp': datetime.now().isoformat()
+                'timestamp': datetime.now().isoformat(),
+                'entities': entities if entities else []
             }
         
-        # Step 5: Check for URL inference
-        if self.url_engine.might_be_url_description(chunk):
+        # Step 5: Check for URL inference (enhanced with ORG entities)
+        if self._should_check_url_inference(chunk, entities):
             inferred = await self.url_engine.infer_url(chunk)
             if inferred['confidence'] != 'none':
                 self.stats['urls_inferred'] += 1
@@ -199,6 +235,27 @@ class TextTriageSystem:
             'timestamp': datetime.now().isoformat()
         }
     
+    def _smart_split_into_chunks(self, text: str, mode: str = 'balanced') -> List[str]:
+        """
+        Use spaCy NLP to intelligently split text into semantic chunks
+        Perfect for STT (Speech-to-Text) where punctuation is often missing
+        """
+        thoughts = self.nlp_core.segment_thoughts(text, mode)
+        
+        # Extract just the text from each thought
+        chunks = []
+        for thought in thoughts:
+            # Use the merged text from the thought analysis
+            chunk_text = thought.get('text', '')
+            if chunk_text.strip():
+                chunks.append(chunk_text.strip())
+        
+        # Log segmentation stats for debugging
+        logger.debug(f"Smart segmentation: {len(chunks)} chunks from {len(text)} chars")
+        logger.debug(f"Average chunk size: {sum(len(c) for c in chunks) / len(chunks):.1f} chars" if chunks else "No chunks")
+        
+        return chunks
+    
     def _split_into_chunks(self, text: str) -> List[str]:
         """Split text into processable chunks"""
         # First split by double newlines (paragraphs)
@@ -220,8 +277,29 @@ class TextTriageSystem:
         
         return final_chunks
     
-    def _detect_todo(self, text: str) -> Optional[Dict]:
-        """Detect if text contains a TODO/action item"""
+    def _should_check_url_inference(self, text: str, entities: List[Tuple] = None) -> bool:
+        """
+        Enhanced URL inference check using entity recognition
+        Organizations (ORG) often indicate website references
+        """
+        # First check traditional patterns
+        if self.url_engine.might_be_url_description(text):
+            return True
+        
+        # Check if we have ORG entities from spaCy
+        if entities:
+            for entity_text, entity_type in entities:
+                if entity_type == 'ORG':
+                    # Organizations often have websites
+                    return True
+        
+        return False
+    
+    def _detect_todo(self, text: str, entities: List[Tuple] = None) -> Optional[Dict]:
+        """
+        Detect if text contains a TODO/action item
+        Enhanced with entity awareness for better urgency detection
+        """
         text_lower = text.lower()
         
         for pattern in self.todo_patterns:
@@ -230,12 +308,24 @@ class TextTriageSystem:
                 # Extract the action part
                 action_text = text[match.start():]
                 
-                # Determine urgency
+                # Determine urgency (enhanced with DATE/TIME entities)
                 urgency = 'medium'
-                if any(word in text_lower for word in ['urgent', 'asap', 'immediately', 'today']):
+                
+                # Check for explicit urgency markers
+                if any(word in text_lower for word in ['urgent', 'asap', 'immediately', 'today', '!!!']):
                     urgency = 'high'
                 elif any(word in text_lower for word in ['eventually', 'sometime', 'maybe']):
                     urgency = 'low'
+                
+                # Use entity information if available
+                if entities:
+                    for entity_text, entity_type in entities:
+                        if entity_type in ['DATE', 'TIME']:
+                            # If there's a specific date/time, it's likely important
+                            if 'today' in entity_text.lower() or 'tomorrow' in entity_text.lower():
+                                urgency = 'high'
+                            elif 'friday' in text_lower and 'urgent' in text_lower:
+                                urgency = 'high'
                 
                 return {
                     'action': action_text[:100],  # Limit length
