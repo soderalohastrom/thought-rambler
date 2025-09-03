@@ -3,12 +3,11 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "packageManager": "pnpm@10.13.1",
   "scripts": {
-    "dev": "yes | pnpm install && vite",
+    "dev": "vite",
     "build": "rm -rf node_modules/.vite-temp && tsc -b && vite build",
-    "vercel-build": "pnpm build",
-    "build:prod": "yes | pnpm install && rm -rf node_modules/.vite-temp && tsc -b && BUILD_MODE=prod vite build",
+    "vercel-build": "npm run build",
+    "build:prod": "rm -rf node_modules/.vite-temp && tsc -b && BUILD_MODE=prod vite build",
     "lint": "yes | pnpm install && eslint .",
     "preview": "yes | pnpm install && vite preview"
   },
