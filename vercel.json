@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd thought-ramble-parser && npm install && npm run build",
+  "buildCommand": "cd thought-ramble-parser && pnpm install && pnpm run build",
   "outputDirectory": "thought-ramble-parser/dist",
   "framework": "vite",
   "routes": [
