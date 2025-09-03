@@ -31,7 +31,12 @@ export function TextTriagePanel() {
   const handleTriage = async () => {
     setIsLoading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/triage/process', {
+      // Use relative URL for Vercel deployment
+      const baseUrl = process.env.NODE_ENV === 'production' 
+        ? '/api/triage-process' 
+        : 'http://localhost:8000/api/triage/process';
+        
+      const response = await fetch(baseUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
