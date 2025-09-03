@@ -4,14 +4,17 @@ import { InputPanel } from '@/components/InputPanel';
 import { OutputPanel } from '@/components/OutputPanel';
 import { LLMToggle } from '@/components/LLMToggle';
 import { DebugPanel } from '@/components/DebugPanel';
+import { TextTriagePanel } from '@/components/TextTriagePanel';
 import { Toaster } from '@/components/ui/toaster';
-import { Brain, Github, Sparkles } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Brain, Github, Sparkles, Filter } from 'lucide-react';
 
 function App() {
   const [parseResult, setParseResult] = useState<ThoughtParseResponse | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [llmEnabled, setLlmEnabled] = useState(false);
   const [debugPanelOpen, setDebugPanelOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('parser');
 
   const handleParseResult = (result: ThoughtParseResponse) => {
     setParseResult(result);
@@ -28,67 +31,86 @@ function App() {
                 <Brain className="w-6 h-6 text-white" />
               </div>
               <div>
-                <h1 className="text-xl font-bold text-gray-900">
-                  Thought Ramble Parser
+                <h1 className="text-xl font-semibold text-gray-900">
+                  Thought Rambler
                 </h1>
-                <p className="text-sm text-gray-600">
-                  AI-powered stream-of-consciousness analysis
+                <p className="text-xs text-gray-600">
+                  Parse & organize your stream of consciousness
                 </p>
               </div>
             </div>
             
             <div className="flex items-center gap-4">
-              <LLMToggle
-                enabled={llmEnabled}
-                onToggle={setLlmEnabled}
-                isProcessing={isLoading}
-              />
+              {activeTab === 'parser' && (
+                <>
+                  <LLMToggle enabled={llmEnabled} onToggle={setLlmEnabled} />
+                  <button
+                    onClick={() => setDebugPanelOpen(!debugPanelOpen)}
+                    className="px-3 py-1.5 text-sm bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center gap-2"
+                  >
+                    <Sparkles className="w-4 h-4" />
+                    Debug
+                  </button>
+                </>
+              )}
+              
+              <a
+                href="https://github.com/soderalohastrom/thought-rambler"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <Github className="w-5 h-5 text-gray-700" />
+              </a>
             </div>
           </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 h-[calc(100vh-8rem)]">
-          {/* Left Panel - Input */}
-          <div className="flex flex-col">
-            <InputPanel 
-              onParseResult={handleParseResult}
-              isLoading={isLoading}
-              setIsLoading={setIsLoading}
-              llmEnabled={llmEnabled}
-            />
-          </div>
+      {/* Main Content with Tabs */}
+      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+          <TabsList className="grid w-full max-w-md mx-auto grid-cols-2 mb-8">
+            <TabsTrigger value="parser" className="flex items-center gap-2">
+              <Brain className="w-4 h-4" />
+              Thought Parser
+            </TabsTrigger>
+            <TabsTrigger value="triage" className="flex items-center gap-2">
+              <Filter className="w-4 h-4" />
+              Text Triage
+            </TabsTrigger>
+          </TabsList>
           
-          {/* Right Panel - Output */}
-          <div className="flex flex-col">
-            <OutputPanel 
-              result={parseResult}
-              isLoading={isLoading}
-            />
-          </div>
-        </div>
+          <TabsContent value="parser">
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="lg:sticky lg:top-24 lg:h-[calc(100vh-8rem)]">
+                <InputPanel 
+                  onParseResult={handleParseResult} 
+                  isLoading={isLoading}
+                  setIsLoading={setIsLoading}
+                  llmEnabled={llmEnabled}
+                />
+              </div>
+              <div>
+                <OutputPanel result={parseResult} isLoading={isLoading} />
+              </div>
+            </div>
+          </TabsContent>
+          
+          <TabsContent value="triage">
+            <TextTriagePanel />
+          </TabsContent>
+        </Tabs>
       </main>
 
-      {/* Footer */}
-      <footer className="mt-auto py-6 text-center text-sm text-gray-500">
-        <div className="max-w-7xl mx-auto px-4">
-          <p>
-            Built with React, TypeScript, and Tailwind CSS. 
-            Backend powered by FastAPI and spaCy NLP.
-          </p>
-        </div>
-      </footer>
-
-      <Toaster />
-      
       {/* Debug Panel */}
       <DebugPanel 
         isOpen={debugPanelOpen}
         onToggle={() => setDebugPanelOpen(!debugPanelOpen)}
         result={parseResult}
       />
+
+      <Toaster />
     </div>
   );
 }
