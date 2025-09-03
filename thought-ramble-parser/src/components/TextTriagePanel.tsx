@@ -150,10 +150,33 @@ export function TextTriagePanel() {
         }),
       });
       
+      if (!response.ok) {
+        console.error('Triage API error:', response.status, response.statusText);
+        const errorText = await response.text();
+        console.error('Error details:', errorText);
+        throw new Error(`API error: ${response.status}`);
+      }
+      
       const data = await response.json();
+      console.log('Triage response:', data); // Debug log
       setResults(data);
     } catch (error) {
       console.error('Triage error:', error);
+      // Set empty results to prevent UI crash
+      setResults({
+        thoughts: [],
+        urls: [],
+        todos: [],
+        quarantine: [],
+        salvaged: [],
+        summary: {
+          total_chunks: 0,
+          quality_metrics: { clean_ratio: 0, url_inference_ratio: 0 },
+          breakdown: {},
+          recommendations: []
+        },
+        processing_log: []
+      });
     } finally {
       setIsLoading(false);
     }
@@ -226,7 +249,7 @@ export function TextTriagePanel() {
       </Card>
 
       {/* Results Section */}
-      {results && (
+      {results && results.summary && (
         <>
           {/* Summary Stats */}
           <Card className="border-purple-200">
@@ -240,25 +263,25 @@ export function TextTriagePanel() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-600">
-                    {results.summary.total_chunks}
+                    {results.summary.total_chunks || 0}
                   </div>
                   <div className="text-xs text-gray-600">Total Chunks</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-green-600">
-                    {(results.summary.quality_metrics?.clean_ratio * 100).toFixed(0)}%
+                    {((results.summary.quality_metrics?.clean_ratio || 0) * 100).toFixed(0)}%
                   </div>
                   <div className="text-xs text-gray-600">Clean Ratio</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-blue-600">
-                    {results.urls.filter(u => u.type === 'inferred').length}
+                    {results.urls?.filter(u => u.type === 'inferred').length || 0}
                   </div>
                   <div className="text-xs text-gray-600">URLs Inferred</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-orange-600">
-                    {results.todos.length}
+                    {results.todos?.length || 0}
                   </div>
                   <div className="text-xs text-gray-600">TODOs Found</div>
                 </div>
