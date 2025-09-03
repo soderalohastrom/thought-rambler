@@ -236,7 +236,7 @@ export function DebugPanel({ isOpen, onToggle, result }: DebugPanelProps) {
                   details={{
                     thought_groups_count: result.verbose_log.thought_groups_count,
                     first_group: result.verbose_log.first_group_detail,
-                    final_chunks: result.verbose_log.final_chunks_count
+                    final_chunks: result.verbose_log.final_chunks_count || result.verbose_log.chunks_created || 0
                   }}
                 />
                 

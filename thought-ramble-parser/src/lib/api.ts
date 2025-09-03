@@ -41,12 +41,14 @@ export interface VerboseLog {
   response_headers?: any;
   response_body_size?: number;
   response_text_preview?: string;
+  response_is_json?: boolean;
   response_json_keys?: string[];
   response_success?: boolean;
   cloudflare_response_full?: any;
   thought_groups_count?: number;
   thought_groups_raw?: any[];
   first_group_detail?: any;
+  final_chunks_count?: number;
   chunks_created_count?: number;
   cloudflare_metadata?: any;
   http_error_code?: number;
